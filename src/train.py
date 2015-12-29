@@ -1,6 +1,7 @@
 #-*- coding: utf-8 -*-
 import pandas as pd
 import numpy as np
+import tensorflow as tf
 import ipdb
 
 from model import Model
@@ -84,7 +85,7 @@ wordtoix, ixtoword, bias_init_vector = build_vocab(all_sentences)
 #### Train Parameters ####
 n_epochs = 100
 learning_rate = 0.001
-
+margin = 0.1
 batch_size = 30
 len_question = np.max(map(lambda x: len(x.split(' ')), questions))
 len_answer = np.max(map(lambda x: len(x.split(' ')), all_answers))
@@ -105,7 +106,20 @@ model = Model(
         )
 
 loss, margin, question, question_mask, answer_right, answer_wrong, answer_mask = model.build_model()
+sess = tf.InteractiveSession()
 
+saver = tf.train.Saver(max_to_keep=10)
+train_op = tf.train.AdamOptimizer(learning_rate).minimize(loss)
+tf.initialize_all_variables().run()
+
+def make_mask(seq, pad=0):
+    mask_mat = np.zeros( (seq.shape[0], seq.shape[1]+pad) )
+    nonzeros = np.array( map(lambda x: (x!=0).sum(), seq))
+
+    for ind, row in enumerate(mask_mat):
+        row[:nonzeros[ind]] = 1
+
+    return mask_mat
 
 for epoch in range(n_epochs):
     index = range(len(questions))
@@ -126,6 +140,24 @@ for epoch in range(n_epochs):
         batch_wrong_answer_ind = map(lambda qs: map(lambda q: [wordtoix[word] for word in q.split(' ') if word in wordtoix], qs), batch_wrong_answer)
 
         batch_question_matrix = sequence.pad_sequences(batch_question_ind, padding='post', maxlen=len_question)
+        batch_question_mask = make_mask(batch_question_matrix, pad=0)
+
         batch_correct_answer_matrix = sequence.pad_sequences(batch_correct_answer_ind, padding='post', maxlen=len_answer)
+
         batch_wrong_answer_matrix = [sequence.pad_sequences(x, padding='post', maxlen=len_answer) for x in batch_wrong_answer_ind]
         batch_wrong_answer_matrix = np.array(batch_wrong_answer_matrix).swapaxes(0,1)
+
+        batch_answer_mask = make_mask(batch_correct_answer_matrix, pad=1) # answer쪽에는 맨 앞에 <bos> 붙기 때문에 여기에도 +1
+
+        _, loss_val = sess.run(
+                [train_op, loss],
+                feed_dict={
+                    margin:0.1,
+                    question:batch_question_matrix,
+                    question_mask:batch_question_mask,
+                    answer_right:batch_correct_answer_matrix,
+                    answer_wrong:batch_wrong_answer_matrix,
+                    answer_mask:batch_answer_mask
+                    })
+
+
