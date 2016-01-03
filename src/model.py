@@ -45,7 +45,7 @@ class Model():
 
         answer_right = tf.placeholder(tf.int32, [self.batch_size, self.len_answer])
         answer_wrong = tf.placeholder(tf.int32, [self.n_answers - 1, self.batch_size, self.len_answer])
-        answer_mask = tf.placeholder(tf.float32, [self.batch_size, self.len_answer])
+        answer_mask = tf.placeholder(tf.float32, [self.batch_size, self.len_answer+1]) # 맨 앞에 <bos>
 
         state1 = tf.zeros([self.batch_size, self.lstm1.state_size])
         state2 = tf.zeros([self.batch_size, self.lstm1.state_size])
